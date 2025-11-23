@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List
 import uvicorn
@@ -7,6 +8,7 @@ from database import engine, get_db, Base
 from models import Cliente, Cotizacion
 from schemas import ClienteCreate, ClienteResponse, CotizacionCreate, CotizacionResponse
 from services.cotizacion_service import CotizacionService
+import os
 
 
 
@@ -106,6 +108,23 @@ def obtener_cotizacion(cotizacion_id: int, db: Session = Depends(get_db)):
     if not cotizacion:
         raise HTTPException(status_code=404, detail="Cotización no encontrada")
     return cotizacion
+
+@app.get("/api/cotizaciones/{cotizacion_id}/pdf")
+def descargar_pdf(cotizacion_id: int, db: Session = Depends(get_db)):
+    """Descargar PDF de una cotización"""
+    cotizacion = db.query(Cotizacion).filter(Cotizacion.id == cotizacion_id).first()
+    
+    if not cotizacion:
+        raise HTTPException(status_code=404, detail="Cotización no encontrada")
+    
+    if not cotizacion.pdf_path or not os.path.exists(cotizacion.pdf_path):
+        raise HTTPException(status_code=404, detail="PDF no encontrado")
+    
+    return FileResponse(
+        cotizacion.pdf_path, 
+        media_type='application/pdf',
+        filename=os.path.basename(cotizacion.pdf_path)
+    )
 
 # Para correr el servidor
 if __name__ == "__main__":
