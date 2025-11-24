@@ -2,8 +2,7 @@ from sqlalchemy.orm import Session
 from models import Cotizacion, ItemCotizacion, TerminoCotizacion, Cliente
 from schemas import CotizacionCreate
 from datetime import datetime, timedelta, timezone
-import asyncio
-from services.pdf_generator import generar_pdf_con_datos
+from services.pdf_generator_reportlab import generar_pdf_con_datos
 
 class CotizacionService:
     
@@ -97,7 +96,8 @@ class CotizacionService:
             }
             
             # Generar PDF
-            pdf_path = asyncio.run(generar_pdf_con_datos(datos_pdf))
+            
+            pdf_path = generar_pdf_con_datos(datos_pdf)
             db_cotizacion.pdf_path = pdf_path
             db.commit()
             
