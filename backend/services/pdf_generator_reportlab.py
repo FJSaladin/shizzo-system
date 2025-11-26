@@ -4,8 +4,8 @@ from reportlab.lib.units import mm
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image, PageBreak, KeepTogether
-from reportlab.platypus.flowables import HRFlowable
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT, TA_JUSTIFY
+from reportlab.pdfgen import canvas
 from datetime import datetime
 
 # Carpeta por defecto para PDFs
@@ -18,6 +18,125 @@ COLOR_AMARILLO = colors.HexColor('#eebe22')
 COLOR_GRIS = colors.HexColor('#666666')
 COLOR_GRIS_CLARO = colors.HexColor('#f8f8f8')
 
+class FooterCanvas(canvas.Canvas):
+    """Canvas personalizado para agregar footer en cada página"""
+    
+    def __init__(self, *args, **kwargs):
+        self.total_paginas = kwargs.pop('total_paginas', 1)
+        self.es_ultima_pagina_cotizacion = kwargs.pop('es_ultima_pagina_cotizacion', False)
+        canvas.Canvas.__init__(self, *args, **kwargs)
+        self.pages = []
+        
+    def showPage(self):
+        self.pages.append(dict(self.__dict__))
+        self._startPage()
+        
+    def save(self):
+        num_pages = len(self.pages)
+        for i, page in enumerate(self.pages):
+            self.__dict__.update(page)
+            # La última página es especial (tiene firma)
+            es_ultima = (i == num_pages - 1)
+            self.draw_footer(i + 1, num_pages, es_ultima)
+            canvas.Canvas.showPage(self)
+        canvas.Canvas.save(self)
+        
+    def draw_footer(self, page_num, total_pages, es_ultima_pagina):
+        """Dibujar footer en cada página"""
+        self.saveState()
+        
+        # === ÁREA SUPERIOR AL FOOTER (para imágenes) ===
+        
+        # Logo mini (siempre en la izquierda)
+        logo_mini_x = 5*mm
+        logo_mini_y = 15*mm
+        logo_mini_width = 20*mm
+        logo_mini_height = 20*mm
+        
+        # Sello digital - POSICIÓN DIFERENTE según página
+        if es_ultima_pagina:
+            # Última página: sello a la DERECHA
+            sello_x = A4[0] - 50*mm
+            sello_y = 25*mm
+        else:
+            # Páginas normales: sello al CENTRO
+            sello_x = A4[0] / 2 - 22.5*mm  # Centrado
+            sello_y = 10*mm
+        
+        sello_width = 45*mm
+        sello_height = 45*mm
+        
+        # Firma (solo última página, al centro)
+        firma_x = A4[0] / 2 - 50*mm
+        firma_y = 25*mm
+        firma_width = 100*mm
+        firma_height = 30*mm
+        
+        try:
+            # Logo mini (en todas las páginas)
+            logo_mini_path = os.path.abspath('static/shizzologomini.jpeg')
+            if os.path.exists(logo_mini_path):
+                self.drawImage(
+                    logo_mini_path,
+                    logo_mini_x, logo_mini_y,
+                    width=logo_mini_width,
+                    height=logo_mini_height,
+                    preserveAspectRatio=True,
+                    mask='auto'
+                )
+            
+            # Sello digital (en todas las páginas, posición variable)
+            sello_path = os.path.abspath('static/shizzosello.jpeg')
+            if os.path.exists(sello_path):
+                self.drawImage(
+                    sello_path,
+                    sello_x, sello_y,
+                    width=sello_width,
+                    height=sello_height,
+                    preserveAspectRatio=True,
+                    mask='auto'
+                )
+            
+            # Firma digital (SOLO en última página)
+            if es_ultima_pagina:
+                firma_path = os.path.abspath('static/firmaDigitalJulioMundarai.jpeg')
+                if os.path.exists(firma_path):
+                    self.drawImage(
+                        firma_path,
+                        firma_x, firma_y,
+                        width=firma_width,
+                        height=firma_height,
+                        preserveAspectRatio=True,
+                        mask='auto'
+                    )
+        
+        except Exception as e:
+            print(f"⚠️ Error cargando imágenes del footer: {e}")
+        
+        # === FOOTER CON TEXTO (barra negra) ===
+        
+        footer_y = 15 * mm
+        
+        # Fondo negro para el footer
+        self.setFillColor(COLOR_PRIMARIO)
+        self.rect(0, 0, A4[0], footer_y, fill=True, stroke=False)
+        
+        # Texto del footer
+        self.setFillColor(colors.white)
+        self.setFont('Helvetica', 9)
+        
+        # Dirección (izquierda)
+        direccion = "C/ Huáscar Tejeda #9, Higüey, La Altagracia, República Dominicana"
+        self.drawString(15 * mm, 7 * mm, direccion)
+        
+        # Número de página (derecha)
+        pagina_texto = f"Página {page_num} / {total_pages}"
+        self.drawRightString(A4[0] - 15 * mm, 7 * mm, pagina_texto)
+        
+        self.restoreState()
+
+
+
 class PDFGenerator:
     def __init__(self, datos):
         self.datos = datos
@@ -29,24 +148,24 @@ class PDFGenerator:
     def _setup_styles(self):
         """Configurar estilos personalizados"""
         
-        # Estilo para título principal
+        # Estilo para título principal (itálica)
         self.styles.add(ParagraphStyle(
             name='TituloPrincipal',
             parent=self.styles['Heading1'],
             fontSize=20,
             textColor=COLOR_PRIMARIO,
-            spaceAfter=12,
+            spaceAfter=8,
             alignment=TA_CENTER,
-            fontName='Helvetica-Bold'
+            fontName='Helvetica-Oblique'  # Solo itálica, el bold lo pones con <b>
         ))
         
         # Estilo para subtítulos
         self.styles.add(ParagraphStyle(
             name='Subtitulo',
             parent=self.styles['Heading2'],
-            fontSize=14,
+            fontSize=13,
             textColor=COLOR_PRIMARIO,
-            spaceAfter=8,
+            spaceAfter=6,
             fontName='Helvetica-Bold',
             textTransform='uppercase'
         ))
@@ -56,18 +175,38 @@ class PDFGenerator:
             name='TextoNormal',
             parent=self.styles['Normal'],
             fontSize=11,
-            textColor=COLOR_PRIMARIO,
+            textColor=colors.black,
             leading=14,
             fontName='Helvetica'
         ))
         
-        # Estilo para texto pequeño
+        # Estilo para texto pequeño (vigencia)
         self.styles.add(ParagraphStyle(
             name='TextoPequeno',
             parent=self.styles['Normal'],
-            fontSize=9,
+            fontSize=10,
             textColor=COLOR_GRIS,
+            fontName='Helvetica-Oblique',
+            alignment=TA_CENTER
+        ))
+        
+        self.styles.add(ParagraphStyle(
+            name='TextoCliente',
+            parent=self.styles['Normal'],
+            fontSize=10,
+            textColor=colors.black,
+            leading=7,
             fontName='Helvetica'
+        ))
+        # Estilo para info de pago
+        self.styles.add(ParagraphStyle(
+            name='TextoPago',
+            parent=self.styles['Normal'],
+            fontSize=10,
+            textColor=colors.black,
+            leading=7,
+            fontName='Helvetica',
+            alignment=TA_RIGHT
         ))
         
         # Estilo para términos
@@ -75,48 +214,59 @@ class PDFGenerator:
             name='Termino',
             parent=self.styles['Normal'],
             fontSize=11,
-            textColor=COLOR_PRIMARIO,
+            textColor=colors.black,
             leading=16,
             alignment=TA_JUSTIFY,
             fontName='Helvetica'
         ))
     
     def _add_header(self):
-        """Agregar header con logo"""
+        """Agregar header con logo de ancho completo"""
         try:
             logo_path = os.path.abspath('static/shizzoHeader.jpeg')
             if os.path.exists(logo_path):
-                img = Image(logo_path, width=self.width, height=25*mm)
+                # Imagen de ancho completo (sin márgenes)
+                img = Image(logo_path, width=A4[0], height=37*mm)
                 self.story.append(img)
-                self.story.append(Spacer(1, 10*mm))
+                self.story.append(Spacer(1, 5*mm))
         except Exception as e:
             print(f"⚠️ No se pudo cargar el header: {e}")
+            self.story.append(Spacer(1, 10*mm))
     
     def _add_info_cotizacion(self):
         """Agregar información de la cotización"""
-        # Título
-        titulo = Paragraph("COTIZACIÓN", self.styles['TituloPrincipal'])
+        # Título en itálica y bold
+        titulo = Paragraph("<b><i>COTIZACIÓN</i></b>", self.styles['TituloPrincipal'])  # ← Agregar <b>
         self.story.append(titulo)
+        self.story.append(Spacer(1, 2*mm))
         
-        # Número de cotización
-        numero = Paragraph(
-            f"<b>{self.datos['numero']}</b>",
-            self.styles['TextoNormal']
+        # Número de cotización (centrado)
+        numero_style = ParagraphStyle(
+            'NumeroStyle',
+            parent=self.styles['TextoNormal'],
+            fontSize=11,
+            alignment=TA_CENTER,
+            fontName='Helvetica-Bold'
         )
+        numero = Paragraph(self.datos['numero'], numero_style)
         self.story.append(numero)
+        self.story.append(Spacer(1, 2*mm))
         
-        # Vigencia
-        vigencia = Paragraph(
-            f"<i>Esta cotización cuenta con una vigencia de <b>{self.datos.get('vigencia_dias', 30)} días</b> a partir de su emisión</i>",
-            self.styles['TextoPequeno']
-        )
+        # Vigencia (itálica, centrada)
+        vigencia_texto = f"Esta cotización cuenta con una vigencia de <b>{self.datos.get('vigencia_dias', 30)} días</b> a partir de su emisión"
+        vigencia = Paragraph(vigencia_texto, self.styles['TextoPequeno'])
         self.story.append(vigencia)
+        self.story.append(Spacer(1, 2*mm))
         
-        # Fechas
-        fechas = Paragraph(
-            f"<b>{self.datos['fecha_emision']} - {self.datos['fecha_vencimiento']}</b>",
-            self.styles['TextoNormal']
+        # Fechas (centradas, bold)
+        fechas_style = ParagraphStyle(
+            'FechasStyle',
+            parent=self.styles['TextoNormal'],
+            fontSize=11,
+            alignment=TA_CENTER,
+            fontName='Helvetica-Bold'
         )
+        fechas = Paragraph(f"{self.datos['fecha_emision']} - {self.datos['fecha_vencimiento']}", fechas_style)
         self.story.append(fechas)
         self.story.append(Spacer(1, 8*mm))
     
@@ -124,46 +274,79 @@ class PDFGenerator:
         """Agregar información del cliente y pago en dos columnas"""
         cliente = self.datos['cliente']
         
-        # Información del cliente (columna izquierda)
-        info_cliente = [
-            [Paragraph("<b>INFORMACIÓN DEL SOLICITANTE</b>", self.styles['Subtitulo'])],
-            [Paragraph(f"<b>Nombre:</b> {cliente['nombre']}", self.styles['TextoNormal'])],
-            [Paragraph(f"<b>RNC:</b> {cliente.get('rnc', 'N/A')}", self.styles['TextoNormal'])],
-            [Paragraph(f"<b>Correo:</b> {cliente.get('correo', 'N/A')}", self.styles['TextoNormal'])],
-            [Paragraph(f"<b>Teléfono:</b> {cliente.get('telefono', 'N/A')}", self.styles['TextoNormal'])],
-            [Paragraph(f"<b>Dirección:</b> {cliente.get('direccion', 'N/A')}", self.styles['TextoNormal'])]
+        # Crear estilos
+        titulo_style = ParagraphStyle(
+            'TituloSeccion',
+            parent=self.styles['Subtitulo'],
+            fontSize=12,
+            spaceAfter=2.5
+        )
+        pago_tituo_style = ParagraphStyle(
+            'TituloPago',
+            parent=self.styles['Subtitulo'],
+            fontSize=12,
+            spaceAfter=2.5,
+            alignment=TA_RIGHT
+        )
+        
+        # Información del cliente
+        cliente_data = [
+            [Paragraph("<b>INFORMACIÓN DEL SOLICITANTE</b>", titulo_style)],
+            [Paragraph(f"<b>Nombre:</b> {cliente['nombre']}", self.styles['TextoCliente'])],
+            [Paragraph(f"<b>RNC:</b> {cliente.get('rnc', 'N/A')}", self.styles['TextoCliente'])],
+            [Paragraph(f"<b>Correo:</b> {cliente.get('correo', 'N/A')}", self.styles['TextoCliente'])],
+            [Paragraph(f"<b>Teléfono:</b> {cliente.get('telefono', 'N/A')}", self.styles['TextoCliente'])],
+            [Paragraph(f"<b>Dirección:</b> {cliente.get('direccion', 'N/A')}", self.styles['TextoCliente'])]
         ]
         
-        # Información de pago (columna derecha)
-        info_pago = [
-            [Paragraph("<b>INFORMACIÓN DE PAGO</b>", self.styles['Subtitulo'])],
-            [Paragraph("<b>Moneda:</b> Peso Dominicano", self.styles['TextoNormal'])],
-            [Paragraph("<b>Método de pago:</b> Transferencia bancaria", self.styles['TextoNormal'])],
-            [Paragraph("Banco BHD: 38770920010 – SHIZZO GROUP", self.styles['TextoPequeno'])],
-            [Paragraph("Banco Popular: 835902214 – Daniel A. Saladin", self.styles['TextoPequeno'])],
-            [Paragraph("Banreservas: 9603583795 – Julio Leonardo Mundaray", self.styles['TextoPequeno'])]
+        tabla_cliente = Table(cliente_data, colWidths=[85*mm])
+        tabla_cliente.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+        ]))
+        
+        # Información de pago
+        pago_data = [
+            [Paragraph("<b>INFORMACIÓN DE PAGO</b>", pago_tituo_style)],
+            [Paragraph("<b>Moneda:</b> Peso Dominicano", self.styles['TextoPago'])],
+            [Paragraph("<b>Método de pago:</b> Transferencia bancaria", self.styles['TextoPago'])],
+            [Paragraph("Banco BHD: 38770920010 – SHIZZO GROUP", self.styles['TextoPago'])],
+            [Paragraph("Banco Popular: 835902214 – Daniel A. Saladin", self.styles['TextoPago'])],
+            [Paragraph("Banreservas: 9603583795 – Julio Leonardo Mundaray", self.styles['TextoPago'])]
         ]
         
-        # Crear tabla con dos columnas
+        tabla_pago = Table(pago_data, colWidths=[85*mm])
+        tabla_pago.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+        ]))
+        
+        # Tabla contenedora con dos columnas
         tabla_info = Table(
-            [[info_cliente, info_pago]],
-            colWidths=[self.width * 0.45, self.width * 0.45]
+            [[tabla_cliente, tabla_pago]],
+            colWidths=[95*mm, 85*mm],
+            spaceBefore=0,
+            spaceAfter=0
         )
         
         tabla_info.setStyle(TableStyle([
             ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('ALIGN', (0, 0), (0, 0), 'LEFT'),
-            ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
         ]))
         
         self.story.append(tabla_info)
-        self.story.append(Spacer(1, 6*mm))
+        self.story.append(Spacer(1, 8*mm))
     
     def _add_descripcion(self):
         """Agregar descripción del proyecto"""
         if self.datos.get('descripcion'):
             desc_titulo = Paragraph("<b>DESCRIPCIÓN</b>", self.styles['Subtitulo'])
             self.story.append(desc_titulo)
+            self.story.append(Spacer(1, 2*mm))
             
             desc_texto = Paragraph(self.datos['descripcion'], self.styles['TextoNormal'])
             self.story.append(desc_texto)
@@ -172,49 +355,59 @@ class PDFGenerator:
     def _add_tabla_items(self):
         """Agregar tabla de items/alcances"""
         # Header de la tabla
+        header_style = ParagraphStyle(
+            'HeaderTable',
+            parent=self.styles['TextoNormal'],
+            fontSize=11,
+            fontName='Helvetica-Bold',
+            alignment=TA_CENTER
+        )
+        
         data = [
             [
-                Paragraph("<b>ALCANCE</b>", self.styles['TextoNormal']),
-                Paragraph("<b>MONTO (DOP)</b>", self.styles['TextoNormal'])
+                Paragraph("<b>ALCANCE</b>", header_style),
+                Paragraph("<b>MONTO (DOP)</b>", header_style)
             ]
         ]
         
         # Items
         for item in self.datos.get('items', []):
             alcance = Paragraph(item['alcance'], self.styles['TextoNormal'])
+            # Formato: DOP 250,000,000.00
             monto = Paragraph(f"DOP {item['monto']:,.2f}", self.styles['TextoNormal'])
             data.append([alcance, monto])
         
         # Crear tabla
-        tabla = Table(data, colWidths=[self.width * 0.7, self.width * 0.2])
+        tabla = Table(data, colWidths=[130*mm, 45*mm])
         
         # Estilos de la tabla
         tabla.setStyle(TableStyle([
             # Header
             ('BACKGROUND', (0, 0), (-1, 0), COLOR_GRIS_CLARO),
             ('TEXTCOLOR', (0, 0), (-1, 0), COLOR_PRIMARIO),
-            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            ('ALIGN', (0, 0), (0, 0), 'CENTER'),
+            ('ALIGN', (1, 0), (1, 0), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, 0), 11),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-            ('TOPPADDING', (0, 0), (-1, 0), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+            ('TOPPADDING', (0, 0), (-1, 0), 6),
             
             # Contenido
             ('ALIGN', (0, 1), (0, -1), 'LEFT'),
             ('ALIGN', (1, 1), (1, -1), 'RIGHT'),
             ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 1), (-1, -1), 10),
-            ('TEXTCOLOR', (0, 1), (-1, -1), COLOR_PRIMARIO),
+            ('FONTSIZE', (0, 1), (-1, -1), 11),
+            ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
             ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('LEFTPADDING', (0, 0), (-1, -1), 8),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 6),
             ('TOPPADDING', (0, 1), (-1, -1), 6),
             ('BOTTOMPADDING', (0, 1), (-1, -1), 6),
             
             # Bordes
-            ('LINEBELOW', (0, 0), (-1, 0), 2, COLOR_PRIMARIO),
-            ('LINEBELOW', (0, 1), (-1, -1), 0.5, colors.lightgrey),
+            ('LINEBELOW', (0, 0), (-1, -1), 0.5, colors.lightgrey),
             ('BOX', (0, 0), (-1, -1), 1, colors.grey),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
         ]))
         
         self.story.append(tabla)
@@ -226,30 +419,45 @@ class PDFGenerator:
         itbis = self.datos.get('itbis', 0)
         total = self.datos.get('total', 0)
         
+        # Estilo para totales
+        total_style = ParagraphStyle(
+            'TotalStyle',
+            parent=self.styles['TextoNormal'],
+            fontSize=11,
+            fontName='Helvetica',
+            alignment=TA_LEFT
+        )
+        
+        total_bold_style = ParagraphStyle(
+            'TotalBoldStyle',
+            parent=self.styles['TextoNormal'],
+            fontSize=11,
+            fontName='Helvetica-Bold',
+            alignment=TA_LEFT
+        )
+        
         data = [
-            ['SUBTOTAL', f"DOP {subtotal:,.2f}"],
-            ['ITBIS (18%)', f"DOP {itbis:,.2f}"],
-            ['TOTAL', f"DOP {total:,.2f}"]
+            [Paragraph('SUBTOTAL', total_style), Paragraph(f"DOP {subtotal:,.2f}", total_style)],
+            [Paragraph('ITBIS (18%)', total_style), Paragraph(f"DOP {itbis:,.2f}", total_style)],
+            [Paragraph('<b>TOTAL</b>', total_bold_style), Paragraph(f"<b>DOP {total:,.2f}</b>", total_bold_style)]
         ]
         
-        tabla_totales = Table(data, colWidths=[60*mm, 50*mm])
+        tabla_totales = Table(data, colWidths=[40*mm, 50*mm])
         
         tabla_totales.setStyle(TableStyle([
-            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
-            ('ALIGN', (1, 0), (1, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (-1, 1), 'Helvetica'),
-            ('FONTNAME', (0, 2), (1, 2), 'Helvetica-Bold'),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
             ('FONTSIZE', (0, 0), (-1, -1), 11),
-            ('TEXTCOLOR', (0, 0), (-1, -1), COLOR_PRIMARIO),
-            ('TOPPADDING', (0, 0), (-1, -1), 4),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-            ('LINEABOVE', (0, 2), (-1, 2), 1.5, COLOR_PRIMARIO),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+            ('TOPPADDING', (0, 0), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+            ('LINEABOVE', (0, 2), (-1, 2), 1, COLOR_PRIMARIO),
         ]))
         
         # Alinear a la derecha
-        tabla_container = Table([[tabla_totales]], colWidths=[self.width * 0.9])
+        tabla_container = Table([[tabla_totales]], colWidths=[180*mm])
         tabla_container.setStyle(TableStyle([
             ('ALIGN', (0, 0), (0, 0), 'RIGHT'),
+            ('VALIGN', (0, 0), (0, 0), 'TOP'),
         ]))
         
         self.story.append(tabla_container)
@@ -264,7 +472,7 @@ class PDFGenerator:
         
         titulo = Paragraph("<b>TÉRMINOS Y CONDICIONES</b>", self.styles['Subtitulo'])
         self.story.append(titulo)
-        self.story.append(Spacer(1, 4*mm))
+        self.story.append(Spacer(1, 5*mm))
         
         for idx, termino in enumerate(self.datos['terminos'], 1):
             termino_texto = Paragraph(
@@ -272,7 +480,7 @@ class PDFGenerator:
                 self.styles['Termino']
             )
             self.story.append(termino_texto)
-            self.story.append(Spacer(1, 3*mm))
+            self.story.append(Spacer(1, 4*mm))
     
     def generar(self, ruta_salida=None):
         """Generar el PDF completo"""
@@ -287,12 +495,21 @@ class PDFGenerator:
             nombre_pdf = f"COT-{self.datos['numero']} {cliente_limpio} {fecha}.pdf"
             ruta_final = os.path.join(CARPETA_POR_DEFECTO, nombre_pdf)
         
-        # Crear documento
+        # Calcular total de páginas aproximado
+        num_items = len(self.datos.get('items', []))
+        num_terminos = len(self.datos.get('terminos', []))
+        
+        # Estimación: ~8 items por página + 1 página inicial
+        paginas_items = 1 + (num_items // 8)
+        paginas_terminos = 1 if num_terminos > 0 else 0
+        total_paginas = paginas_items + paginas_terminos
+        
+        # Crear documento con canvas personalizado
         doc = SimpleDocTemplate(
             ruta_final,
             pagesize=A4,
-            topMargin=10*mm,
-            bottomMargin=15*mm,
+            topMargin=0,
+            bottomMargin=75*mm,  # Espacio para footer + imágenes
             leftMargin=15*mm,
             rightMargin=15*mm
         )
@@ -306,8 +523,16 @@ class PDFGenerator:
         self._add_totales()
         self._add_terminos()
         
-        # Generar PDF
-        doc.build(self.story)
+        # Generar PDF con footer personalizado
+        doc.build(
+            self.story,
+            canvasmaker=lambda *args, **kwargs: FooterCanvas(
+                *args,
+                total_paginas=total_paginas,
+                es_ultima_pagina_cotizacion=False,  # Lo maneja automáticamente
+                **kwargs
+            )
+        )
         
         print(f"✅ PDF generado: {ruta_final}")
         return ruta_final
