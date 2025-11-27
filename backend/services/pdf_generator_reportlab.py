@@ -15,7 +15,7 @@ os.makedirs(CARPETA_POR_DEFECTO, exist_ok=True)
 # Colores SHIZZO
 COLOR_PRIMARIO = colors.HexColor('#222222')
 COLOR_AMARILLO = colors.HexColor('#eebe22')
-COLOR_GRIS = colors.HexColor('#666666')
+COLOR_GRIS = colors.HexColor("#515151")
 COLOR_GRIS_CLARO = colors.HexColor('#f8f8f8')
 
 class FooterCanvas(canvas.Canvas):
@@ -56,21 +56,21 @@ class FooterCanvas(canvas.Canvas):
         # Sello digital - POSICIÓN DIFERENTE según página
         if es_ultima_pagina:
             # Última página: sello a la DERECHA
-            sello_x = A4[0] - 50*mm
-            sello_y = 25*mm
+            sello_x = A4[0] - 70*mm
+            sello_y = 20*mm
         else:
             # Páginas normales: sello al CENTRO
-            sello_x = A4[0] / 2 - 22.5*mm  # Centrado
+            sello_x = A4[0] / 2 - 26.5*mm  # Centrado
             sello_y = 10*mm
         
-        sello_width = 45*mm
-        sello_height = 45*mm
+        sello_width = 50*mm
+        sello_height = 50*mm
         
         # Firma (solo última página, al centro)
-        firma_x = A4[0] / 2 - 50*mm
-        firma_y = 25*mm
-        firma_width = 100*mm
-        firma_height = 30*mm
+        firma_x = A4[0] / 2 - 60*mm
+        firma_y = 5*mm
+        firma_width = 120*mm
+        firma_height = 50*mm
         
         try:
             # Logo mini (en todas las páginas)
@@ -81,18 +81,6 @@ class FooterCanvas(canvas.Canvas):
                     logo_mini_x, logo_mini_y,
                     width=logo_mini_width,
                     height=logo_mini_height,
-                    preserveAspectRatio=True,
-                    mask='auto'
-                )
-            
-            # Sello digital (en todas las páginas, posición variable)
-            sello_path = os.path.abspath('static/shizzosello.jpeg')
-            if os.path.exists(sello_path):
-                self.drawImage(
-                    sello_path,
-                    sello_x, sello_y,
-                    width=sello_width,
-                    height=sello_height,
                     preserveAspectRatio=True,
                     mask='auto'
                 )
@@ -109,6 +97,20 @@ class FooterCanvas(canvas.Canvas):
                         preserveAspectRatio=True,
                         mask='auto'
                     )
+
+            # Sello digital (en todas las páginas, posición variable)
+            sello_path = os.path.abspath('static/shizzosello.jpeg')
+            if os.path.exists(sello_path):
+                self.drawImage(
+                    sello_path,
+                    sello_x, sello_y,
+                    width=sello_width,
+                    height=sello_height,
+                    preserveAspectRatio=True,
+                    mask='auto'
+                )
+            
+            
         
         except Exception as e:
             print(f"⚠️ Error cargando imágenes del footer: {e}")
@@ -152,9 +154,9 @@ class PDFGenerator:
         self.styles.add(ParagraphStyle(
             name='TituloPrincipal',
             parent=self.styles['Heading1'],
-            fontSize=20,
+            fontSize=18,
             textColor=COLOR_PRIMARIO,
-            spaceAfter=8,
+            spaceAfter=4,
             alignment=TA_CENTER,
             fontName='Helvetica-Oblique'  # Solo itálica, el bold lo pones con <b>
         ))
@@ -165,7 +167,7 @@ class PDFGenerator:
             parent=self.styles['Heading2'],
             fontSize=13,
             textColor=COLOR_PRIMARIO,
-            spaceAfter=6,
+            spaceAfter=1,
             fontName='Helvetica-Bold',
             textTransform='uppercase'
         ))
@@ -195,7 +197,7 @@ class PDFGenerator:
             parent=self.styles['Normal'],
             fontSize=10,
             textColor=colors.black,
-            leading=7,
+            leading=12,
             fontName='Helvetica'
         ))
         # Estilo para info de pago
@@ -238,7 +240,7 @@ class PDFGenerator:
         # Título en itálica y bold
         titulo = Paragraph("<b><i>COTIZACIÓN</i></b>", self.styles['TituloPrincipal'])  # ← Agregar <b>
         self.story.append(titulo)
-        self.story.append(Spacer(1, 2*mm))
+        self.story.append(Spacer(1, 1*mm))
         
         # Número de cotización (centrado)
         numero_style = ParagraphStyle(
@@ -268,7 +270,7 @@ class PDFGenerator:
         )
         fechas = Paragraph(f"{self.datos['fecha_emision']} - {self.datos['fecha_vencimiento']}", fechas_style)
         self.story.append(fechas)
-        self.story.append(Spacer(1, 8*mm))
+        self.story.append(Spacer(1, 4*mm))
     
     def _add_info_cliente_pago(self):
         """Agregar información del cliente y pago en dos columnas"""
@@ -339,18 +341,18 @@ class PDFGenerator:
         ]))
         
         self.story.append(tabla_info)
-        self.story.append(Spacer(1, 8*mm))
+        self.story.append(Spacer(1, 0*mm))
     
     def _add_descripcion(self):
         """Agregar descripción del proyecto"""
         if self.datos.get('descripcion'):
             desc_titulo = Paragraph("<b>DESCRIPCIÓN</b>", self.styles['Subtitulo'])
             self.story.append(desc_titulo)
-            self.story.append(Spacer(1, 2*mm))
+            self.story.append(Spacer(1, 1*mm))
             
             desc_texto = Paragraph(self.datos['descripcion'], self.styles['TextoNormal'])
             self.story.append(desc_texto)
-            self.story.append(Spacer(1, 6*mm))
+            self.story.append(Spacer(1, 3*mm))
     
     def _add_tabla_items(self):
         """Agregar tabla de items/alcances"""
@@ -411,7 +413,7 @@ class PDFGenerator:
         ]))
         
         self.story.append(tabla)
-        self.story.append(Spacer(1, 6*mm))
+        self.story.append(Spacer(1, 8*mm))
     
     def _add_totales(self):
         """Agregar tabla de totales"""
@@ -480,7 +482,7 @@ class PDFGenerator:
                 self.styles['Termino']
             )
             self.story.append(termino_texto)
-            self.story.append(Spacer(1, 4*mm))
+            self.story.append(Spacer(1, 2*mm))
     
     def generar(self, ruta_salida=None):
         """Generar el PDF completo"""
@@ -509,7 +511,7 @@ class PDFGenerator:
             ruta_final,
             pagesize=A4,
             topMargin=0,
-            bottomMargin=75*mm,  # Espacio para footer + imágenes
+            bottomMargin=50*mm,  # Espacio para footer + imágenes
             leftMargin=15*mm,
             rightMargin=15*mm
         )
