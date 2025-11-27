@@ -146,7 +146,27 @@ class PDFGenerator:
         self.story = []
         self.styles = getSampleStyleSheet()
         self._setup_styles()
-        
+
+    def _header(self, canvas, doc):
+        """Header fijo que se repite en TODAS las páginas (incluida la de términos)"""
+        logo_path = os.path.abspath('static/shizzoHeader.jpeg')
+        if not os.path.exists(logo_path):
+            return  # Si falta la imagen, simplemente no dibuja nada
+
+        header_height = 37 * mm
+        try:
+            canvas.drawImage(
+                logo_path,
+                0,                                      # x = 0 (ancho completo)
+                A4[1] - header_height +1*mm,                  # y = parte superior menos altura del header
+                width=A4[0],                            # ancho completo de la página
+                height=header_height,
+                preserveAspectRatio=True,
+                mask='auto'
+            )
+        except Exception as e:
+            print(f"Error dibujando header en canvas: {e}")    
+
     def _setup_styles(self):
         """Configurar estilos personalizados"""
         
@@ -221,19 +241,6 @@ class PDFGenerator:
             alignment=TA_JUSTIFY,
             fontName='Helvetica'
         ))
-    
-    def _add_header(self):
-        """Agregar header con logo de ancho completo"""
-        try:
-            logo_path = os.path.abspath('static/shizzoHeader.jpeg')
-            if os.path.exists(logo_path):
-                # Imagen de ancho completo (sin márgenes)
-                img = Image(logo_path, width=A4[0], height=37*mm)
-                self.story.append(img)
-                self.story.append(Spacer(1, 5*mm))
-        except Exception as e:
-            print(f"⚠️ No se pudo cargar el header: {e}")
-            self.story.append(Spacer(1, 10*mm))
     
     def _add_info_cotizacion(self):
         """Agregar información de la cotización"""
@@ -470,7 +477,7 @@ class PDFGenerator:
             return
         
         self.story.append(PageBreak())
-        self._add_header()
+        
         
         titulo = Paragraph("<b>TÉRMINOS Y CONDICIONES</b>", self.styles['Subtitulo'])
         self.story.append(titulo)
@@ -485,8 +492,8 @@ class PDFGenerator:
             self.story.append(Spacer(1, 2*mm))
     
     def generar(self, ruta_salida=None):
-        """Generar el PDF completo"""
-        # Determinar ruta final
+        """Generar el PDF completo con header fijo en todas las páginas"""
+        # === Determinar ruta y nombre del archivo ===
         if ruta_salida:
             ruta_final = ruta_salida
             os.makedirs(os.path.dirname(ruta_salida), exist_ok=True)
@@ -497,47 +504,46 @@ class PDFGenerator:
             nombre_pdf = f"COT-{self.datos['numero']} {cliente_limpio} {fecha}.pdf"
             ruta_final = os.path.join(CARPETA_POR_DEFECTO, nombre_pdf)
         
-        # Calcular total de páginas aproximado
+        # === Estimación de páginas (solo para el footer) ===
         num_items = len(self.datos.get('items', []))
         num_terminos = len(self.datos.get('terminos', []))
-        
-        # Estimación: ~8 items por página + 1 página inicial
-        paginas_items = 1 + (num_items // 8)
+        paginas_items = max(1, (num_items // 8) + 1)
         paginas_terminos = 1 if num_terminos > 0 else 0
         total_paginas = paginas_items + paginas_terminos
-        
-        # Crear documento con canvas personalizado
+
+        # === Crear documento con márgenes correctos ===
         doc = SimpleDocTemplate(
             ruta_final,
             pagesize=A4,
-            topMargin=0,
-            bottomMargin=50*mm,  # Espacio para footer + imágenes
-            leftMargin=15*mm,
-            rightMargin=15*mm
+            topMargin=37 * mm,       # 37 mm header + 5 mm de espacio respiratorio
+            bottomMargin=55 * mm,    # footer + sello + firma (un poco más seguro)
+            leftMargin=15 * mm,
+            rightMargin=15 * mm
         )
-        
-        # Construir contenido
-        self._add_header()
+
+        # === Construir el contenido SIN añadir el header manualmente ===
         self._add_info_cotizacion()
         self._add_info_cliente_pago()
         self._add_descripcion()
         self._add_tabla_items()
         self._add_totales()
-        self._add_terminos()
-        
-        # Generar PDF con footer personalizado
+        self._add_terminos()   # ya no llama a _add_header()
+
+        # === Generar PDF con header repetido y footer personalizado ===
         doc.build(
             self.story,
+            onFirstPage=self._header,      # Header en la primera página
+            onLaterPages=self._header,     # Header en todas las demás
             canvasmaker=lambda *args, **kwargs: FooterCanvas(
                 *args,
                 total_paginas=total_paginas,
-                es_ultima_pagina_cotizacion=False,  # Lo maneja automáticamente
                 **kwargs
             )
         )
-        
-        print(f"✅ PDF generado: {ruta_final}")
+
+        print(f"PDF generado: {ruta_final}")
         return ruta_final
+      
 
 
 def generar_pdf_con_datos(datos, ruta_salida=None):
