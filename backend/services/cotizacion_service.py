@@ -1,8 +1,9 @@
+# services/cotizacion_service.py
 from sqlalchemy.orm import Session
+from sqlalchemy import func, extract
 from models import Cotizacion, ItemCotizacion, TerminoCotizacion, Cliente
 from schemas import CotizacionCreate
 from datetime import datetime, timedelta, timezone
-from services.pdf_generator_reportlab import generar_pdf_con_datos
 
 class CotizacionService:
     
@@ -17,7 +18,7 @@ class CotizacionService:
     
     @staticmethod
     def crear_cotizacion(db: Session, cotizacion_data: CotizacionCreate):
-        """Crear cotización con items, términos y PDF"""
+        """Crear cotización SIN generar PDF"""
         
         # Verificar que el cliente existe
         cliente = db.query(Cliente).filter(Cliente.id == cotizacion_data.cliente_id).first()
@@ -46,7 +47,8 @@ class CotizacionService:
             vigencia_dias=cotizacion_data.vigencia_dias,
             subtotal=subtotal,
             itbis=itbis,
-            total=total
+            total=total,
+            pdf_path=None  # ← Sin PDF todavía
         )
         db.add(db_cotizacion)
         db.flush()
@@ -73,35 +75,80 @@ class CotizacionService:
         db.commit()
         db.refresh(db_cotizacion)
         
-        # === GENERAR PDF ===
-        try:
-            datos_pdf = {
-                "numero": numero,
-                "fecha_emision": fecha_emision.strftime("%d/%m/%Y"),
-                "fecha_vencimiento": fecha_vencimiento.strftime("%d/%m/%Y"),
-                "vigencia_dias": cotizacion_data.vigencia_dias,
-                "cliente": {
-                    "nombre": cliente.nombre,
-                    "rnc": cliente.rnc or "",
-                    "correo": cliente.correo or "",
-                    "telefono": cliente.telefono or "",
-                    "direccion": cliente.direccion or ""
-                },
-                "descripcion": cotizacion_data.descripcion or "",
-                "items": [{"alcance": item.alcance, "monto": item.monto} for item in cotizacion_data.items],
-                "terminos": [termino.texto for termino in (cotizacion_data.terminos or [])],
-                "subtotal": subtotal,
-                "itbis": itbis,
-                "total": total
-            }
-            
-            # Generar PDF
-            
-            pdf_path = generar_pdf_con_datos(datos_pdf)
-            db_cotizacion.pdf_path = pdf_path
-            db.commit()
-            
-        except Exception as e:
-            print(f"❌ Error generando PDF: {e}")
-        
         return db_cotizacion
+    
+    @staticmethod
+    def generar_pdf_cotizacion(db: Session, cotizacion_id: int):
+        """Generar PDF de una cotización existente"""
+        from services.pdf_generator_reportlab import generar_pdf_con_datos
+        
+        # Obtener cotización completa
+        cotizacion = db.query(Cotizacion).filter(Cotizacion.id == cotizacion_id).first()
+        if not cotizacion:
+            raise ValueError("Cotización no encontrada")
+        
+        # Preparar datos para el PDF
+        datos_pdf = {
+            "numero": cotizacion.numero,
+            "fecha_emision": cotizacion.fecha_emision.strftime("%d/%m/%Y"),
+            "fecha_vencimiento": cotizacion.fecha_vencimiento.strftime("%d/%m/%Y"),
+            "vigencia_dias": cotizacion.vigencia_dias,
+            "cliente": {
+                "nombre": cotizacion.cliente.nombre,
+                "rnc": cotizacion.cliente.rnc or "",
+                "correo": cotizacion.cliente.correo or "",
+                "telefono": cotizacion.cliente.telefono or "",
+                "direccion": cotizacion.cliente.direccion or ""
+            },
+            "descripcion": cotizacion.descripcion or "",
+            "items": [{"alcance": item.alcance, "monto": item.monto} for item in cotizacion.items],
+            "terminos": [termino.texto for termino in cotizacion.terminos],
+            "subtotal": cotizacion.subtotal,
+            "itbis": cotizacion.itbis,
+            "total": cotizacion.total
+        }
+        
+        # Generar PDF
+        pdf_path = generar_pdf_con_datos(datos_pdf)
+        
+        # Actualizar ruta del PDF en la BD
+        cotizacion.pdf_path = pdf_path
+        db.commit()
+        
+        return pdf_path
+    
+    @staticmethod
+    def listar(db: Session, skip: int = 0, limit: int = 100):
+        """Listar cotizaciones"""
+        return db.query(Cotizacion).order_by(Cotizacion.fecha_emision.desc()).offset(skip).limit(limit).all()
+    
+    @staticmethod
+    def obtener_por_id(db: Session, cotizacion_id: int):
+        """Obtener cotización por ID"""
+        return db.query(Cotizacion).filter(Cotizacion.id == cotizacion_id).first()
+    
+    @staticmethod
+    def contar_total(db: Session) -> int:
+        """Contar total de cotizaciones"""
+        return db.query(Cotizacion).count()
+    
+    @staticmethod
+    def contar_mes_actual(db: Session) -> int:
+        """Contar cotizaciones del mes actual"""
+        mes_actual = datetime.now().month
+        anio_actual = datetime.now().year
+        return db.query(Cotizacion).filter(
+            extract('month', Cotizacion.fecha_emision) == mes_actual,
+            extract('year', Cotizacion.fecha_emision) == anio_actual
+        ).count()
+    
+    @staticmethod
+    def monto_total_mes(db: Session) -> float:
+        """Monto total cotizado en el mes"""
+        mes_actual = datetime.now().month
+        anio_actual = datetime.now().year
+        resultado = db.query(func.sum(Cotizacion.total)).filter(
+            extract('month', Cotizacion.fecha_emision) == mes_actual,
+            extract('year', Cotizacion.fecha_emision) == anio_actual
+        ).scalar()
+        return resultado or 0.0

@@ -89,7 +89,7 @@ def eliminar_cliente(cliente_id: int, db: Session = Depends(get_db)):
 
 @app.post("/api/cotizaciones", response_model=CotizacionResponse)
 def crear_cotizacion(cotizacion: CotizacionCreate, db: Session = Depends(get_db)):
-    """Crear una nueva cotización"""
+    """Crear una nueva cotización (sin generar PDF)"""
     try:
         return CotizacionService.crear_cotizacion(db, cotizacion)
     except ValueError as e:
@@ -98,27 +98,47 @@ def crear_cotizacion(cotizacion: CotizacionCreate, db: Session = Depends(get_db)
 @app.get("/api/cotizaciones", response_model=List[CotizacionResponse])
 def listar_cotizaciones(db: Session = Depends(get_db)):
     """Obtener todas las cotizaciones"""
-    cotizaciones = db.query(Cotizacion).order_by(Cotizacion.fecha_emision.desc()).all()
+    cotizaciones = CotizacionService.listar(db)
     return cotizaciones
 
 @app.get("/api/cotizaciones/{cotizacion_id}", response_model=CotizacionResponse)
 def obtener_cotizacion(cotizacion_id: int, db: Session = Depends(get_db)):
     """Obtener una cotización por ID"""
-    cotizacion = db.query(Cotizacion).filter(Cotizacion.id == cotizacion_id).first()
+    cotizacion = CotizacionService.obtener_por_id(db, cotizacion_id)
     if not cotizacion:
         raise HTTPException(status_code=404, detail="Cotización no encontrada")
     return cotizacion
 
+@app.post("/api/cotizaciones/{cotizacion_id}/generar-pdf")
+def generar_pdf_cotizacion(cotizacion_id: int, db: Session = Depends(get_db)):
+    """Generar PDF de una cotización existente"""
+    try:
+        pdf_path = CotizacionService.generar_pdf_cotizacion(db, cotizacion_id)
+        return {
+            "message": "PDF generado exitosamente",
+            "pdf_path": pdf_path,
+            "cotizacion_id": cotizacion_id
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generando PDF: {str(e)}")
+
 @app.get("/api/cotizaciones/{cotizacion_id}/pdf")
 def descargar_pdf(cotizacion_id: int, db: Session = Depends(get_db)):
     """Descargar PDF de una cotización"""
-    cotizacion = db.query(Cotizacion).filter(Cotizacion.id == cotizacion_id).first()
+    cotizacion = CotizacionService.obtener_por_id(db, cotizacion_id)
     
     if not cotizacion:
         raise HTTPException(status_code=404, detail="Cotización no encontrada")
     
+    # Si no tiene PDF, generarlo
     if not cotizacion.pdf_path or not os.path.exists(cotizacion.pdf_path):
-        raise HTTPException(status_code=404, detail="PDF no encontrado")
+        try:
+            CotizacionService.generar_pdf_cotizacion(db, cotizacion_id)
+            db.refresh(cotizacion)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error generando PDF: {str(e)}")
     
     return FileResponse(
         cotizacion.pdf_path, 
