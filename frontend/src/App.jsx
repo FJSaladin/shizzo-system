@@ -1,5 +1,8 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';  // ← Cambiar aquí
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import Layout from './components/layout/Layout';
+import Dashboard from './pages/dashboard/Dashboard';
+import Clientes from './pages/clientes/Clientes';
 
 // Configurar React Query
 const queryClient = new QueryClient({
@@ -16,21 +19,18 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <Router>
-        <div className="min-h-screen bg-gray-100">
-          <div className="flex items-center justify-center h-screen">
-            <div className="text-center">
-              <h1 className="text-4xl font-bold text-gray-900 mb-4">
-                🎉 SHIZZO System
-              </h1>
-              <p className="text-gray-600 text-lg mb-8">
-                Frontend funcionando correctamente
-              </p>
-              <div className="inline-block bg-yellow-shizzo text-gray-900 px-6 py-3 rounded-lg font-semibold shadow-lg">
-                ✅ React + Vite + Tailwind v3
-              </div>
-            </div>
-          </div>
-        </div>
+        <Layout>
+          <Routes>
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/clientes" element={<Clientes />} />
+            
+            {/* Rutas futuras */}
+            <Route path="/cotizaciones" element={<div className="text-center py-12">Cotizaciones - Próximamente</div>} />
+            <Route path="/proyectos" element={<div className="text-center py-12">Proyectos - Próximamente</div>} />
+            <Route path="/configuracion" element={<div className="text-center py-12">Configuración - Próximamente</div>} />
+          </Routes>
+        </Layout>
       </Router>
     </QueryClientProvider>
   );
