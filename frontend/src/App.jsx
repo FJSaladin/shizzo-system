@@ -4,6 +4,9 @@ import Layout from './components/layout/Layout';
 import Dashboard from './pages/dashboard/Dashboard';
 import Clientes from './pages/clientes/Clientes';
 import ClienteForm from './pages/clientes/ClienteForm';
+import Cotizaciones from './pages/cotizaciones/Cotizaciones';
+import CotizacionForm from './pages/cotizaciones/CotizacionForm';
+
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -16,8 +19,6 @@ const queryClient = new QueryClient({
 });
 
 function App() {
-  console.log('App renderizando...');
-  
   return (
     <QueryClientProvider client={queryClient}>
       <Router>
@@ -28,26 +29,14 @@ function App() {
             
             {/* Clientes */}
             <Route path="/clientes" element={<Clientes />} />
-            <Route 
-              path="/clientes/nuevo" 
-              element={
-                <>
-                  {console.log('Renderizando ClienteForm nuevo')}
-                  <ClienteForm />
-                </>
-              } 
-            />
-            <Route 
-              path="/clientes/editar/:id" 
-              element={
-                <>
-                  {console.log('Renderizando ClienteForm editar')}
-                  <ClienteForm />
-                </>
-              } 
-            />
+            <Route path="/clientes/nuevo" element={<ClienteForm />} />
+            <Route path="/clientes/editar/:id" element={<ClienteForm />} />
             
-            <Route path="/cotizaciones" element={<div className="text-center py-12">Cotizaciones - Próximamente</div>} />
+            {/* Cotizaciones */}
+            <Route path="/cotizaciones" element={<Cotizaciones />} />
+            <Route path="/cotizaciones/nueva" element={<CotizacionForm />} />
+            <Route path="/cotizaciones/:id" element={<div>Detalle próximamente</div>} />
+            
             <Route path="/proyectos" element={<div className="text-center py-12">Proyectos - Próximamente</div>} />
             <Route path="/configuracion" element={<div className="text-center py-12">Configuración - Próximamente</div>} />
           </Routes>
@@ -56,4 +45,5 @@ function App() {
     </QueryClientProvider>
   );
 }
+
 export default App;
