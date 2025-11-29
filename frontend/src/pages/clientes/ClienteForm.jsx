@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Save } from 'lucide-react';
+import { ArrowLeft, Save, Loader2 } from 'lucide-react';
 import { clienteService } from '../../services/clienteService';
 import Toast from '../../components/common/Toast';
 
@@ -23,20 +23,24 @@ export default function ClienteForm() {
   const [errors, setErrors] = useState({});
 
   // Cargar datos si es modo edición
-  useQuery({
+  const { data: clienteData, isLoading: isLoadingCliente } = useQuery({
     queryKey: ['cliente', id],
     queryFn: () => clienteService.getById(id),
-    enabled: isEditMode,
-    onSuccess: (data) => {
+    enabled: isEditMode, // Solo ejecuta si estamos en modo edición
+  });
+
+  // useEffect para cargar los datos cuando lleguen
+  useEffect(() => {
+    if (clienteData && isEditMode) {
       setFormData({
-        nombre: data.nombre || '',
-        rnc: data.rnc || '',
-        correo: data.correo || '',
-        telefono: data.telefono || '',
-        direccion: data.direccion || ''
+        nombre: clienteData.nombre || '',
+        rnc: clienteData.rnc || '',
+        correo: clienteData.correo || '',
+        telefono: clienteData.telefono || '',
+        direccion: clienteData.direccion || ''
       });
     }
-  });
+  }, [clienteData, isEditMode]);
 
   // Mutación para crear/actualizar
   const mutation = useMutation({
@@ -47,7 +51,7 @@ export default function ClienteForm() {
       return clienteService.create(data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['clientes']);
+      queryClient.invalidateQueries({ queryKey: ['clientes'] });
       setToast({
         type: 'success',
         message: `Cliente ${isEditMode ? 'actualizado' : 'creado'} exitosamente`
@@ -103,6 +107,18 @@ export default function ClienteForm() {
     
     mutation.mutate(formData);
   };
+
+  // Mostrar loading mientras carga los datos del cliente
+  if (isEditMode && isLoadingCliente) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="flex items-center space-x-3 text-gray-600">
+          <Loader2 className="animate-spin" size={24} />
+          <span>Cargando datos del cliente...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -231,16 +247,26 @@ export default function ClienteForm() {
               type="button"
               onClick={() => navigate('/clientes')}
               className="btn-outline"
+              disabled={mutation.isPending}
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={mutation.isPending}
-              className="btn-primary flex items-center space-x-2"
+              className="btn-primary flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Save size={20} />
-              <span>{mutation.isPending ? 'Guardando...' : 'Guardar'}</span>
+              {mutation.isPending ? (
+                <>
+                  <Loader2 className="animate-spin" size={20} />
+                  <span>Guardando...</span>
+                </>
+              ) : (
+                <>
+                  <Save size={20} />
+                  <span>Guardar</span>
+                </>
+              )}
             </button>
           </div>
         </form>
