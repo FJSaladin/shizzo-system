@@ -28,7 +28,7 @@ export default function Sidebar() {
             <Zap className="text-gray-900" size={28} />
           </div>
           <div>
-            <h1 className="text-xl font-bold">SHIZZO</h1>
+            <h1 className="text-xl font-bold">S-  SHIZZO</h1>
             <p className="text-xs text-gray-400">Sistema Administrativo</p>
           </div>
         </div>

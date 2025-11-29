@@ -9,6 +9,7 @@ export default function Layout({ children }) {
         <Navbar />
         <main className="pt-16">
           <div className="p-6">
+            {console.log('Layout children:', children)}
             {children}
           </div>
         </main>
