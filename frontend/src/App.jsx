@@ -6,7 +6,7 @@ import Clientes from './pages/clientes/Clientes';
 import ClienteForm from './pages/clientes/ClienteForm';
 import Cotizaciones from './pages/cotizaciones/Cotizaciones';
 import CotizacionForm from './pages/cotizaciones/CotizacionForm';
-
+import CotizacionDetalle from './pages/cotizaciones/CotizacionDetalle';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -35,7 +35,7 @@ function App() {
             {/* Cotizaciones */}
             <Route path="/cotizaciones" element={<Cotizaciones />} />
             <Route path="/cotizaciones/nueva" element={<CotizacionForm />} />
-            <Route path="/cotizaciones/:id" element={<div>Detalle próximamente</div>} />
+            <Route path="/cotizaciones/:id" element={<CotizacionDetalle />} />
             
             <Route path="/proyectos" element={<div className="text-center py-12">Proyectos - Próximamente</div>} />
             <Route path="/configuracion" element={<div className="text-center py-12">Configuración - Próximamente</div>} />
