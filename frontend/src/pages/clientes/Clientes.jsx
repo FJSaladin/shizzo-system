@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, AlertTriangle } from 'lucide-react';
 import { clienteService } from '../../services/clienteService';
 import Modal from '../../components/common/Modal';
 import Toast from '../../components/common/Toast';
@@ -11,7 +11,7 @@ export default function Clientes() {
   const queryClient = useQueryClient();
   
   const [searchTerm, setSearchTerm] = useState('');
-  const [deleteModal, setDeleteModal] = useState({ isOpen: false, cliente: null });
+  const [clienteToDelete, setClienteToDelete] = useState(null);
   const [toast, setToast] = useState(null);
   
   // Obtener clientes
@@ -24,12 +24,12 @@ export default function Clientes() {
   const deleteMutation = useMutation({
     mutationFn: (id) => clienteService.delete(id),
     onSuccess: () => {
-      queryClient.invalidateQueries(['clientes']);
-      setDeleteModal({ isOpen: false, cliente: null });
+      queryClient.invalidateQueries({ queryKey: ['clientes'] });
       setToast({
         type: 'success',
         message: 'Cliente eliminado exitosamente'
       });
+      setClienteToDelete(null);
     },
     onError: () => {
       setToast({
@@ -40,10 +40,20 @@ export default function Clientes() {
   });
 
   // Filtrar clientes
-  const filteredClientes = clientes?.filter(cliente =>
+  const clientesFiltrados = clientes?.filter(cliente =>
     cliente.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
     cliente.rnc?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  ) || [];
+
+  const handleDeleteClick = (cliente) => {
+    setClienteToDelete(cliente);
+  };
+
+  const handleConfirmDelete = () => {
+    if (clienteToDelete) {
+      deleteMutation.mutate(clienteToDelete.id);
+    }
+  };
   
   if (isLoading) {
     return (
@@ -63,6 +73,49 @@ export default function Clientes() {
           onClose={() => setToast(null)}
         />
       )}
+
+      {/* Modal de confirmación */}
+      <Modal
+        isOpen={!!clienteToDelete}
+        onClose={() => setClienteToDelete(null)}
+        title="Confirmar Eliminación"
+        size="sm"
+        footer={
+          <>
+            <button
+              onClick={() => setClienteToDelete(null)}
+              className="btn-outline"
+              disabled={deleteMutation.isPending}
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleConfirmDelete}
+              disabled={deleteMutation.isPending}
+              className="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200 disabled:opacity-50"
+            >
+              {deleteMutation.isPending ? 'Eliminando...' : 'Eliminar'}
+            </button>
+          </>
+        }
+      >
+        <div className="flex items-start space-x-4">
+          <div className="flex-shrink-0">
+            <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+              <AlertTriangle className="text-red-600" size={24} />
+            </div>
+          </div>
+          <div className="flex-1">
+            <p className="text-gray-700">
+              ¿Estás seguro de que deseas eliminar al cliente{' '}
+              <span className="font-semibold">{clienteToDelete?.nombre}</span>?
+            </p>
+            <p className="text-sm text-gray-500 mt-2">
+              Esta acción no se puede deshacer. El cliente será marcado como inactivo.
+            </p>
+          </div>
+        </div>
+      </Modal>
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -95,7 +148,7 @@ export default function Clientes() {
       
       {/* Table */}
       <div className="card">
-        {filteredClientes && filteredClientes.length > 0 ? (
+        {clientesFiltrados.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -118,7 +171,7 @@ export default function Clientes() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredClientes.map((cliente) => (
+                {clientesFiltrados.map((cliente) => (
                   <tr key={cliente.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       {cliente.nombre}
@@ -142,7 +195,7 @@ export default function Clientes() {
                           <Pencil size={18} />
                         </button>
                         <button
-                          onClick={() => setDeleteModal({ isOpen: true, cliente })}
+                          onClick={() => handleDeleteClick(cliente)}
                           className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                           title="Eliminar"
                         >
@@ -157,43 +210,13 @@ export default function Clientes() {
           </div>
         ) : (
           <div className="text-center py-12 text-gray-500">
-            {searchTerm ? 'No se encontraron clientes con ese criterio' : 'No hay clientes registrados. ¡Crea el primero!'}
+            {searchTerm 
+              ? 'No se encontraron clientes con ese criterio'
+              : 'No hay clientes registrados. ¡Crea el primero!'
+            }
           </div>
         )}
       </div>
-
-      {/* Modal de Confirmación de Eliminación */}
-      <Modal
-        isOpen={deleteModal.isOpen}
-        onClose={() => setDeleteModal({ isOpen: false, cliente: null })}
-        title="Eliminar Cliente"
-        size="sm"
-      >
-        <div className="space-y-4">
-          <p className="text-gray-600">
-            ¿Estás seguro de que deseas eliminar a <strong>{deleteModal.cliente?.nombre}</strong>?
-          </p>
-          <p className="text-sm text-red-600">
-            Esta acción no se puede deshacer.
-          </p>
-          <div className="flex space-x-3 justify-end pt-4">
-            <button
-              onClick={() => setDeleteModal({ isOpen: false, cliente: null })}
-              className="btn-outline"
-              disabled={deleteMutation.isPending}
-            >
-              Cancelar
-            </button>
-            <button
-              onClick={() => deleteMutation.mutate(deleteModal.cliente.id)}
-              className="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors disabled:opacity-50"
-              disabled={deleteMutation.isPending}
-            >
-              {deleteMutation.isPending ? 'Eliminando...' : 'Eliminar'}
-            </button>
-          </div>
-        </div>
-      </Modal>
     </div>
   );
 }

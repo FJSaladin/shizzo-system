@@ -1,6 +1,14 @@
 import { X } from 'lucide-react';
 
-export default function Modal({ isOpen, onClose, title, children, size = 'md' }) {
+export default function Modal({ 
+  isOpen, 
+  onClose, 
+  title, 
+  children, 
+  size = 'md',
+  footer,
+  showCloseButton = true 
+}) {
   if (!isOpen) return null;
   
   const sizeClasses = {
@@ -24,18 +32,27 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md' })
           {/* Header */}
           <div className="flex items-center justify-between p-6 border-b border-gray-200">
             <h3 className="text-xl font-semibold text-gray-900">{title}</h3>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              <X size={24} />
-            </button>
+            {showCloseButton && (
+              <button
+                onClick={onClose}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X size={24} />
+              </button>
+            )}
           </div>
           
           {/* Content */}
           <div className="p-6">
             {children}
           </div>
+
+          {/* Footer (opcional) */}
+          {footer && (
+            <div className="flex items-center justify-end space-x-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
+              {footer}
+            </div>
+          )}
         </div>
       </div>
     </div>
