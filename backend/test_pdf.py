@@ -50,7 +50,7 @@ datos_prueba = {
     ],
     "subtotal": 93000.00,
     "itbis": 16740.00,
-    "total": 109740.00
+    "total": 333109740.00
 }
 
 if __name__ == "__main__":
