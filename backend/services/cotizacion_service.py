@@ -1,19 +1,30 @@
-# services/cotizacion_service.py
 from sqlalchemy.orm import Session
 from sqlalchemy import func, extract
-from models import Cotizacion, ItemCotizacion, TerminoCotizacion, Cliente
+from models import Cotizacion, ItemCotizacion, TerminoCotizacion, Cliente, TipoCotizacion
 from schemas import CotizacionCreate
 from datetime import datetime, timedelta, timezone
 
 class CotizacionService:
     
     @staticmethod
-    def generar_numero_cotizacion(db: Session) -> str:
-        """Generar número único de cotización"""
+    def generar_numero_cotizacion(db: Session, tipo_id: int) -> str:
+        """Generar número único de cotización basado en el tipo"""
+        # Obtener el tipo
+        tipo = db.query(TipoCotizacion).filter(TipoCotizacion.id == tipo_id).first()
+        if not tipo:
+            raise ValueError("Tipo de cotización no encontrado")
+        
+        # Obtener mes y año actual
         mes = datetime.now().strftime("%m")
         anio = datetime.now().strftime("%y")
-        contador = db.query(Cotizacion).count() + 1
-        numero = f"EST-{mes}{anio}-{str(contador).zfill(4)}"
+        
+        # Contar cotizaciones del mismo tipo
+        contador = db.query(Cotizacion).filter(
+            Cotizacion.tipo_id == tipo_id
+        ).count() + 1
+        
+        # Formato: CODIGO-MMYY-0001
+        numero = f"{tipo.codigo}-{mes}{anio}-{str(contador).zfill(4)}"
         return numero
     
     @staticmethod
@@ -25,8 +36,13 @@ class CotizacionService:
         if not cliente:
             raise ValueError("Cliente no encontrado")
         
-        # Generar número
-        numero = CotizacionService.generar_numero_cotizacion(db)
+        # Verificar que el tipo existe
+        tipo = db.query(TipoCotizacion).filter(TipoCotizacion.id == cotizacion_data.tipo_id).first()
+        if not tipo:
+            raise ValueError("Tipo de cotización no encontrado")
+        
+        # Generar número basado en el tipo
+        numero = CotizacionService.generar_numero_cotizacion(db, cotizacion_data.tipo_id)
         
         # Calcular fechas
         fecha_emision = datetime.now(timezone.utc)
@@ -41,6 +57,7 @@ class CotizacionService:
         db_cotizacion = Cotizacion(
             numero=numero,
             cliente_id=cotizacion_data.cliente_id,
+            tipo_id=cotizacion_data.tipo_id,
             descripcion=cotizacion_data.descripcion,
             fecha_emision=fecha_emision,
             fecha_vencimiento=fecha_vencimiento,
@@ -48,7 +65,7 @@ class CotizacionService:
             subtotal=subtotal,
             itbis=itbis,
             total=total,
-            pdf_path=None  # ← Sin PDF todavía
+            pdf_path=None
         )
         db.add(db_cotizacion)
         db.flush()

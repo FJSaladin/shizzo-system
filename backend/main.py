@@ -5,12 +5,14 @@ from sqlalchemy.orm import Session
 from typing import List
 import uvicorn
 from database import engine, get_db, Base
-from models import Cliente, Cotizacion
-from schemas import ClienteCreate, ClienteResponse, CotizacionCreate, CotizacionResponse
+from models import Cliente, Cotizacion, TipoCotizacion
+from schemas import (
+    ClienteCreate, ClienteResponse,
+    CotizacionCreate, CotizacionResponse,
+    TipoCotizacionCreate, TipoCotizacionResponse
+)
 from services.cotizacion_service import CotizacionService
 import os
-
-
 
 # Crear las tablas en la base de datos
 Base.metadata.create_all(bind=engine)
@@ -18,7 +20,7 @@ Base.metadata.create_all(bind=engine)
 # Crear la aplicación
 app = FastAPI(title="SHIZZO API", version="1.0.0")
 
-# CORS (para que el frontend pueda conectarse después)
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
@@ -38,7 +40,6 @@ def home():
 @app.post("/api/clientes", response_model=ClienteResponse)
 def crear_cliente(cliente: ClienteCreate, db: Session = Depends(get_db)):
     """Crear un nuevo cliente"""
-    # Crear el cliente en la base de datos
     db_cliente = Cliente(**cliente.model_dump())
     db.add(db_cliente)
     db.commit()
@@ -66,7 +67,6 @@ def actualizar_cliente(cliente_id: int, cliente: ClienteCreate, db: Session = De
     if not db_cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
     
-    # Actualizar campos
     for key, value in cliente.model_dump().items():
         setattr(db_cliente, key, value)
     
@@ -84,6 +84,37 @@ def eliminar_cliente(cliente_id: int, db: Session = Depends(get_db)):
     db_cliente.activo = False
     db.commit()
     return {"mensaje": "Cliente eliminado exitosamente"}
+
+# ====================== TIPOS DE COTIZACIÓN ======================
+
+@app.post("/api/tipos-cotizacion", response_model=TipoCotizacionResponse)
+def crear_tipo(tipo: TipoCotizacionCreate, db: Session = Depends(get_db)):
+    """Crear un nuevo tipo de cotización"""
+    # Verificar que el código no exista
+    existe = db.query(TipoCotizacion).filter(TipoCotizacion.codigo == tipo.codigo.upper()).first()
+    if existe:
+        raise HTTPException(status_code=400, detail="Ya existe un tipo con ese código")
+    
+    db_tipo = TipoCotizacion(**tipo.model_dump())
+    db_tipo.codigo = db_tipo.codigo.upper()  # Siempre en mayúsculas
+    db.add(db_tipo)
+    db.commit()
+    db.refresh(db_tipo)
+    return db_tipo
+
+@app.get("/api/tipos-cotizacion", response_model=List[TipoCotizacionResponse])
+def listar_tipos(db: Session = Depends(get_db)):
+    """Obtener todos los tipos activos"""
+    tipos = db.query(TipoCotizacion).filter(TipoCotizacion.activo == True).all()
+    return tipos
+
+@app.get("/api/tipos-cotizacion/{tipo_id}", response_model=TipoCotizacionResponse)
+def obtener_tipo(tipo_id: int, db: Session = Depends(get_db)):
+    """Obtener un tipo por ID"""
+    tipo = db.query(TipoCotizacion).filter(TipoCotizacion.id == tipo_id).first()
+    if not tipo:
+        raise HTTPException(status_code=404, detail="Tipo no encontrado")
+    return tipo
 
 # ====================== COTIZACIONES ======================
 
@@ -132,7 +163,6 @@ def descargar_pdf(cotizacion_id: int, db: Session = Depends(get_db)):
     if not cotizacion:
         raise HTTPException(status_code=404, detail="Cotización no encontrada")
     
-    # Si no tiene PDF, generarlo
     if not cotizacion.pdf_path or not os.path.exists(cotizacion.pdf_path):
         try:
             CotizacionService.generar_pdf_cotizacion(db, cotizacion_id)

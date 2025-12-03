@@ -31,7 +31,7 @@ CARPETA_POR_DEFECTO = "Cotizaciones"
 os.makedirs(CARPETA_POR_DEFECTO, exist_ok=True)
 
 COLOR_PRIMARIO = colors.HexColor("#141414")
-COLOR_AMARILLO = colors.HexColor('#eebe22')
+COLOR_AMARILLO = colors.HexColor("#db901f")
 COLOR_GRIS = colors.HexColor("#515151")
 COLOR_GRIS_CLARO = colors.HexColor('#f8f8f8')
 
@@ -102,8 +102,11 @@ class FooterCanvas(canvas.Canvas):
         # Barra negra + texto con Century Gothic
         self.setFillColor(COLOR_PRIMARIO)
         self.rect(0, 0, A4[0], 15*mm, fill=True, stroke=False)
-
+        self.setFillColor(COLOR_AMARILLO)
+        self.rect(0, 15*mm, A4[0], 1.5*mm, fill=True, stroke=False)
         self.setFillColor(colors.white)
+        
+
         self.setFont("CenturyGothic", 9)  # ¡Aquí usamos Century Gothic!
 
         self.drawString(15*mm, 7*mm, "C/ Huáscar Tejeda #9, Higüey, La Altagracia, República Dominicana")
@@ -278,7 +281,7 @@ class PDFGenerator:
             ('TOPPADDING', (0,0), (-1,0), 8),
             ('BOTTOMPADDING', (0,0), (-1,0), 8),
             ('GRID', (0,1), (-1,-1), 0.5, colors.lightgrey), 
-            ('BOX', (0,1), (-1,-1), 1, colors.grey), 
+            ('BOX', (0,1), (-1,-1), 1, colors.lightgrey), 
             ('VALIGN', (0,0), (-1,-1), 'TOP'),
             ('LEFTPADDING', (0,0), (-1,-1), 6),
             ('RIGHTPADDING', (0,0), (-1,-1), 6),

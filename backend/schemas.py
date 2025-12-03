@@ -2,7 +2,8 @@ from pydantic import BaseModel, EmailStr
 from typing import Optional, List
 from datetime import datetime
 
-# Schema base (campos comunes)
+# ====================== CLIENTES ======================
+
 class ClienteBase(BaseModel):
     nombre: str
     rnc: Optional[str] = None
@@ -10,16 +11,33 @@ class ClienteBase(BaseModel):
     telefono: Optional[str] = None
     direccion: Optional[str] = None
 
-# Schema para CREAR un cliente (lo que el usuario envía)
 class ClienteCreate(ClienteBase):
     pass
 
-# Schema para RESPONDER con un cliente (lo que devuelve la API)
 class ClienteResponse(ClienteBase):
     id: int
     activo: bool
     created_at: datetime
     updated_at: datetime  
+    
+    class Config:
+        from_attributes = True
+
+
+# ====================== TIPOS DE COTIZACIÓN ======================
+
+class TipoCotizacionBase(BaseModel):
+    nombre: str
+    codigo: str
+    descripcion: Optional[str] = None
+
+class TipoCotizacionCreate(TipoCotizacionBase):
+    pass
+
+class TipoCotizacionResponse(TipoCotizacionBase):
+    id: int
+    activo: bool
+    created_at: datetime
     
     class Config:
         from_attributes = True
@@ -38,6 +56,7 @@ class ItemResponse(ItemCreate):
     class Config:
         from_attributes = True
 
+
 # ====================== TÉRMINOS ======================
 
 class TerminoCreate(BaseModel):
@@ -50,10 +69,12 @@ class TerminoResponse(TerminoCreate):
     class Config:
         from_attributes = True
 
+
 # ====================== COTIZACIONES ======================
 
 class CotizacionBase(BaseModel):
     cliente_id: int
+    tipo_id: int  # ← NUEVO
     descripcion: Optional[str] = None
     vigencia_dias: Optional[int] = 30
 
@@ -76,6 +97,7 @@ class CotizacionResponse(CotizacionBase):
     
     # Relaciones
     cliente: ClienteResponse
+    tipo: TipoCotizacionResponse  # ← NUEVO
     items: List[ItemResponse]
     terminos: List[TerminoResponse]
     

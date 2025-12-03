@@ -20,15 +20,33 @@ class Cliente(Base):
     cotizaciones = relationship("Cotizacion", back_populates="cliente")
 
 
+class TipoCotizacion(Base):
+    __tablename__ = "tipos_cotizacion"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    nombre = Column(String(100), nullable=False)  # Ej: "Estructural", "Eléctrico"
+    codigo = Column(String(10), unique=True, nullable=False)  # Ej: "EST", "ELC"
+    descripcion = Column(Text)
+    activo = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    
+    # Relación: Un tipo puede tener muchas cotizaciones
+    cotizaciones = relationship("Cotizacion", back_populates="tipo")
+
+
 class Cotizacion(Base):
     __tablename__ = "cotizaciones"
     
     id = Column(Integer, primary_key=True, index=True)
-    numero = Column(String(50), unique=True, nullable=False)  # EST-1125-0001
+    numero = Column(String(50), unique=True, nullable=False)  # EST-1125-0001, ELC-1125-0002
     
     # Relación con cliente
     cliente_id = Column(Integer, ForeignKey("clientes.id"), nullable=False)
     cliente = relationship("Cliente", back_populates="cotizaciones")
+    
+    # Relación con tipo
+    tipo_id = Column(Integer, ForeignKey("tipos_cotizacion.id"), nullable=False)
+    tipo = relationship("TipoCotizacion", back_populates="cotizaciones")
     
     # Fechas
     fecha_emision = Column(DateTime, default=lambda: datetime.now(timezone.utc))
