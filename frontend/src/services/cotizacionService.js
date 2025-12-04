@@ -25,6 +25,12 @@ export const cotizacionService = {
     return response.data;
   },
   
+  // Cambiar estado
+  cambiarEstado: async (id, estado) => {
+    const response = await api.patch(`/cotizaciones/${id}/estado`, { estado });
+    return response.data;
+  },
+  
   // Descargar PDF
   downloadPDF: (id) => {
     window.open(`${api.defaults.baseURL}/cotizaciones/${id}/pdf`, '_blank');

@@ -13,6 +13,7 @@ from schemas import (
 )
 from services.cotizacion_service import CotizacionService
 import os
+from pydantic import BaseModel
 
 # Crear las tablas en la base de datos
 Base.metadata.create_all(bind=engine)
@@ -175,6 +176,41 @@ def descargar_pdf(cotizacion_id: int, db: Session = Depends(get_db)):
         media_type='application/pdf',
         filename=os.path.basename(cotizacion.pdf_path)
     )
+# Agregar este endpoint en backend/main.py después de los otros endpoints de cotizaciones
+
+
+
+class CambiarEstadoRequest(BaseModel):
+    estado: str  # "pendiente", "aprobada", "rechazada"
+
+@app.patch("/api/cotizaciones/{cotizacion_id}/estado")
+def cambiar_estado_cotizacion(
+    cotizacion_id: int, 
+    request: CambiarEstadoRequest,
+    db: Session = Depends(get_db)
+):
+    """Cambiar el estado de una cotización"""
+    cotizacion = db.query(Cotizacion).filter(Cotizacion.id == cotizacion_id).first()
+    
+    if not cotizacion:
+        raise HTTPException(status_code=404, detail="Cotización no encontrada")
+    
+    # Validar estado
+    estados_validos = ["pendiente", "aprobada", "rechazada"]
+    if request.estado not in estados_validos:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Estado inválido. Debe ser uno de: {', '.join(estados_validos)}"
+        )
+    
+    cotizacion.estado = request.estado
+    db.commit()
+    db.refresh(cotizacion)
+    
+    return {
+        "mensaje": f"Estado actualizado a '{request.estado}'",
+        "cotizacion": cotizacion
+    }
 
 # Para correr el servidor
 if __name__ == "__main__":

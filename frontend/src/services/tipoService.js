@@ -19,3 +19,14 @@ export const tipoService = {
     return response.data;
   },
 };
+
+// También actualizar cotizacionService.js agregando:
+export const cotizacionService = {
+  // ... métodos existentes ...
+  
+  // Cambiar estado
+  cambiarEstado: async (id, estado) => {
+    const response = await api.patch(`/cotizaciones/${id}/estado`, { estado });
+    return response.data;
+  },
+};
