@@ -35,6 +35,7 @@ function App() {
             {/* Cotizaciones */}
             <Route path="/cotizaciones" element={<Cotizaciones />} />
             <Route path="/cotizaciones/nueva" element={<CotizacionForm />} />
+            <Route path="/cotizaciones/editar/:id" element={<CotizacionForm />} />
             <Route path="/cotizaciones/:id" element={<CotizacionDetalle />} />
             
             <Route path="/proyectos" element={<div className="text-center py-12">Proyectos - Próximamente</div>} />

@@ -19,6 +19,10 @@ export const cotizacionService = {
     return response.data;
   },
   
+    update: async (id, cotizacionData) => {
+    const response = await api.put(`/cotizaciones/${id}`, cotizacionData);
+    return response.data;
+  },
   // Generar PDF de cotización
   generarPDF: async (id) => {
     const response = await api.post(`/cotizaciones/${id}/generar-pdf`);

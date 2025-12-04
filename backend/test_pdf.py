@@ -14,7 +14,7 @@ datos_prueba = {
     "fecha_vencimiento": "10/12/2025",
     "vigencia_dias": 15,
     "cliente": {
-        "nombre": "Ferretería El Progreso",
+        "nombre": "Ferretería El Progreso Ferretería El Progreso Ferretería El Progreso Ferretería El Progreso Ferretería El ProgresoFerretería El Progreso Ferretería El Progreso",
         "rnc": "1-09-45678-3",
         "correo": "ventas@ferreteriaelprogreso.com",
         "telefono": "(809) 555-6789",

@@ -1,3 +1,4 @@
+from datetime import datetime
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -5,7 +6,7 @@ from sqlalchemy.orm import Session
 from typing import List
 import uvicorn
 from database import engine, get_db, Base
-from models import Cliente, Cotizacion, TipoCotizacion
+from models import Cliente, Cotizacion, ItemCotizacion, TerminoCotizacion, TipoCotizacion
 from schemas import (
     ClienteCreate, ClienteResponse,
     CotizacionCreate, CotizacionResponse,
@@ -127,6 +128,8 @@ def crear_cotizacion(cotizacion: CotizacionCreate, db: Session = Depends(get_db)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+
+
 @app.get("/api/cotizaciones", response_model=List[CotizacionResponse])
 def listar_cotizaciones(db: Session = Depends(get_db)):
     """Obtener todas las cotizaciones"""
@@ -155,6 +158,81 @@ def generar_pdf_cotizacion(cotizacion_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generando PDF: {str(e)}")
+
+# Agregar después del POST de cotizaciones en backend/main.py
+
+@app.put("/api/cotizaciones/{cotizacion_id}", response_model=CotizacionResponse)
+def actualizar_cotizacion(
+    cotizacion_id: int,
+    cotizacion: CotizacionCreate,
+    db: Session = Depends(get_db)
+):
+    """Actualizar una cotización existente"""
+    
+    # Verificar que existe
+    db_cotizacion = db.query(Cotizacion).filter(Cotizacion.id == cotizacion_id).first()
+    if not db_cotizacion:
+        raise HTTPException(status_code=404, detail="Cotización no encontrada")
+    
+    # Verificar cliente y tipo
+    cliente = db.query(Cliente).filter(Cliente.id == cotizacion.cliente_id).first()
+    if not cliente:
+        raise HTTPException(status_code=400, detail="Cliente no encontrado")
+    
+    tipo = db.query(TipoCotizacion).filter(TipoCotizacion.id == cotizacion.tipo_id).first()
+    if not tipo:
+        raise HTTPException(status_code=400, detail="Tipo de cotización no encontrado")
+    
+    # Calcular nuevas fechas
+    from datetime import timedelta, timezone
+    fecha_emision = datetime.now(timezone.utc)
+    fecha_vencimiento = fecha_emision + timedelta(days=cotizacion.vigencia_dias)
+    
+    # Calcular totales
+    subtotal = sum(item.monto for item in cotizacion.items)
+    itbis = subtotal * 0.18
+    total = subtotal + itbis
+    
+    # Actualizar campos básicos
+    db_cotizacion.cliente_id = cotizacion.cliente_id
+    db_cotizacion.tipo_id = cotizacion.tipo_id
+    db_cotizacion.descripcion = cotizacion.descripcion
+    db_cotizacion.vigencia_dias = cotizacion.vigencia_dias
+    db_cotizacion.fecha_vencimiento = fecha_vencimiento
+    db_cotizacion.subtotal = subtotal
+    db_cotizacion.itbis = itbis
+    db_cotizacion.total = total
+    
+    # Eliminar items y términos antiguos
+    db.query(ItemCotizacion).filter(ItemCotizacion.cotizacion_id == cotizacion_id).delete()
+    db.query(TerminoCotizacion).filter(TerminoCotizacion.cotizacion_id == cotizacion_id).delete()
+    
+    # Crear nuevos items
+    for idx, item in enumerate(cotizacion.items):
+        db_item = ItemCotizacion(
+            cotizacion_id=cotizacion_id,
+            alcance=item.alcance,
+            monto=item.monto,
+            orden=idx
+        )
+        db.add(db_item)
+    
+    # Crear nuevos términos
+    for idx, termino in enumerate(cotizacion.terminos or []):
+        db_termino = TerminoCotizacion(
+            cotizacion_id=cotizacion_id,
+            texto=termino.texto,
+            orden=idx
+        )
+        db.add(db_termino)
+    
+    # Invalidar PDF si existía (porque cambió el contenido)
+    db_cotizacion.pdf_path = None
+    
+    db.commit()
+    db.refresh(db_cotizacion)
+    
+    return db_cotizacion
 
 @app.get("/api/cotizaciones/{cotizacion_id}/pdf")
 def descargar_pdf(cotizacion_id: int, db: Session = Depends(get_db)):
